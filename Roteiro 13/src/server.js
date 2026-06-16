@@ -1,0 +1,58 @@
+import Fastify from "fastify";
+import cors from "@fastify/cors";
+
+import tarefaRoutes from "./routes/tarefa.routes.js";
+import TarefaRepository from "./repositories/tarefa.repository.js";
+import TarefaService from "./services/tarefa.service.js";
+import TarefaController from "./controllers/tarefa.controller.js";
+import { AppError } from "./errors/AppError.js";
+import pool from "./database/pool.js";
+
+const server = Fastify();
+
+server.register(cors, {
+  origin: "*",
+  methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+});
+
+// Composition Root: criação e conexão das dependências
+const repository = new TarefaRepository();
+const service = new TarefaService(repository);
+const controller = new TarefaController(service);
+
+// ==========================================
+// TRATAMENTO DE ERROS GLOBAL (A Rede de Segurança)
+// ==========================================
+server.setErrorHandler((error, request, reply) => {
+  if (error instanceof AppError) {
+    return reply.status(error.statusCode).send({
+      status: "error",
+      message: error.message,
+    });
+  }
+  console.error("🔥 ERRO INTERNO:", error);
+  return reply.status(500).send({
+    status: "error",
+    message: "Internal Server Error",
+  });
+});
+
+// Registra as rotas, passando o controller via options
+server.register(tarefaRoutes, { controller });
+
+const PORT = 3000;
+
+const start = async () => {
+  try {
+    await pool.query("SELECT 1");
+    console.log("Conectado ao PostgreSQL com sucesso");
+
+    await server.listen({ port: PORT });
+    console.log(`Servidor rodando em http://localhost:${PORT}`);
+  } catch (err) {
+    console.error("Falha ao iniciar a aplicação:", err);
+    process.exit(1);
+  }
+};
+
+start();
